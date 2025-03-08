@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import os 
+import os
 import cv2
 from dataclasses import dataclass
 
@@ -10,7 +10,7 @@ os.chdir(current_dir)
 sensor_file = 'data/mysenior_sensor_data_output.csv'
 debris_file = 'data/0_ALEXIS_22638_debris_new.csv'
 star_file = 'data/Star-100027_star.csv'
-star_magnitude_file = 'data/Star-100027_star_magnitude.csv'
+star_magnitude_file = 'data/Star-100027_magnitude.csv'
 access_file_csv = 'data/Satellite-observe-Sensor-mysenior-To-Satellite-0_ALEXIS_22638_Access.csv'
 access_file_txt = 'data/Satellite-observe-Sensor-mysenior-To-Satellite-0_ALEXIS_22638_Access.txt'
 f = 0.01413
@@ -21,7 +21,7 @@ H = 700
 class SpaceObject():
   def __init__(self, category, name='unknow'):
     self.name = name
-    self.category = category # 'sensor', 'debris', 'star' 
+    self.category = category # 'sensor', 'debris', 'star'
 
 class Sensor(SpaceObject):
   def __init__(self, name, time, x, y, z, vx, vy, vz, q1, q2, q3, q4, wx, wy, wz, category='sensor'):
@@ -45,7 +45,7 @@ class Debris:
   name: str
   time: pd.Timestamp
   magnitude: float
-  position: np.ndarray 
+  position: np.ndarray
 
 def read_sensor_data(sensor_file):
   sensor_data = pd.read_csv(sensor_file)
@@ -80,8 +80,8 @@ def read_debris_data(debris_file):
       )for i in range(len(time))
     ]
     debris.append(group_debris)
-    return debris, debris_name_list
-  
+  return debris, debris_name_list
+
 def read_star_data(star_file,star_magnitude_file):
   star_data = pd.read_csv(star_file,header=None)
   magnitude_data  = pd.read_csv(star_magnitude_file,header=None)
@@ -134,8 +134,8 @@ class DebrisInImage():#记录在图像中的碎片和星，包含坐标星等和
     self.gray = int(self.gray)
     self.gray = 255 if self.gray > 255 else self.gray
     self.gray = 0 if self.gray < 0 else self.gray
-    
-    
+
+
 class SpaceImage():#绘制每个时刻的图像
   def __init__(self,time,f,dh,dv,H):
     self.time = time
@@ -158,9 +158,9 @@ class SpaceImage():#绘制每个时刻的图像
                     [2*q3*q1+2*q0*q2,     -2*q3*q0+2*q1*q2,    q3**2-q0**2-q1**2+q2**2]])
     self.Msi = Msi
     return self.Msi
-  
-  def log_debris(self,debris,debris_name):
-    self.debris = debris
+
+  def log_debris(self,debris0,debris_name):
+    self.debris = debris0
     sensor_vec = self.sensor.position
     debris_vec = self.debris.position
     vec = sensor_vec-debris_vec
@@ -177,7 +177,7 @@ class SpaceImage():#绘制每个时刻的图像
       print(self.u,self.v)
     debris_temp = DebrisInImage(debris_name,self.time,self.u,self.v,magnitude,'debris')
     self.visible_debris.append(debris_temp)
-  
+
   def log_star(self,star,star_name):
     # 将位置矢量近似为方向矢量
     vec = star.position
@@ -189,7 +189,7 @@ class SpaceImage():#绘制每个时刻的图像
       print(self.u,self.v)
     star_temp = DebrisInImage(star_name,self.time,self.u,self.v, star.magnitude,'star')
     self.visible_star.append(star_temp)
-  
+
   def diffuse_img(self, img, u, v, gray):
     diffuse = np.zeros((9,9),dtype=np.uint8)
     for i in range(9):
@@ -201,40 +201,40 @@ class SpaceImage():#绘制每个时刻的图像
     end_u = min(img_h, u + radius + 1)
     start_v = max(0, v - radius)
     end_v = min(img_w, v + radius + 1)
-    
+
     d_start_u = radius - (u - start_u) if u < radius else 0
     d_end_u = d_start_u + (end_u - start_u)
     d_start_v = radius - (v - start_v) if v < radius else 0
     d_end_v = d_start_v + (end_v - start_v)
-    
+
     img[start_u:end_u, start_v:end_v] = diffuse[d_start_u:d_end_u, d_start_v:d_end_v]#叠加
     return img
-  
+
   def add_noise(self, img):
     noise = np.random.normal(10,10,(self.H*2,self.H*2))
     img = img + noise
     img_clipped = np.clip(img, 0, 255).astype(np.uint8)
     return img_clipped
-  
-  def plot_image(self,plot=False, save=False, label=True):
+
+  def plot_image(self,ifplot=False, ifsave=False, iflabel=True):
     # 662*662 焦距f=0.01413m  0.000006m/pixel, alpha = 16.05deg = 2arctan(H/2f), -->H=662
     visible_debris = self.visible_debris
     visible_star = self.visible_star
     img = np.zeros((self.H*2,self.H*2),dtype=np.uint8)
     for debris_ in visible_debris:
       img = SpaceImage.diffuse_img(self, img,debris_.u+self.H,debris_.v+self.H,debris_.gray)
-      if label:
+      if iflabel:
         cv2.putText(img,debris_.name,(debris_.v+self.H+10,debris_.u+self.H+10),cv2.FONT_HERSHEY_SIMPLEX,0.2,(255,255,255),1)
     for star_ in visible_star:
       img = SpaceImage.diffuse_img(self, img,star_.u+self.H,star_.v+self.H,star_.gray)
-      if label:
+      if iflabel:
         cv2.putText(img,star_.name,(star_.v+self.H+10,star_.u+self.H+10),cv2.FONT_HERSHEY_SIMPLEX,0.2,(255,255,255),1)
     img = SpaceImage.add_noise(self,img)
-    if plot:
+    if ifplot:
       cv2.imshow('image',img)
       cv2.waitKey(0)
-    if save:
-      cv2.imwrite('image/'+str(self.time)+'.png',img)
+    if ifsave:
+      cv2.imwrite('image/'+"{:04d}".format(time_list.index(self.time))+'.png',img)
     return img
   
 def images_sequence(star_index,end_index):
@@ -251,15 +251,13 @@ def images_sequence(star_index,end_index):
         if access.index[i] in debris_name_list:
           visible_debris.append(access.index[i])
 
-    print(len(visible_debris),len(visible_star))
-    
     space_image = SpaceImage(curr_time, f, dh, dv,H)
     Msi = space_image.rotate(sensor[time_index])
 
     if len(visible_debris) != 0:
       for debris_name in visible_debris:
         debris_index = debris_name_list.index(debris_name)
-        space_image.log_debris(debris[debris_index][time_index],debris_name)   
+        space_image.log_debris(debris[debris_index][time_index],debris_name)
     if len(visible_star) != 0:
       for star_name in visible_star:
         star_index = star_name_list.index(star_name)
@@ -267,7 +265,18 @@ def images_sequence(star_index,end_index):
     images.append(space_image)
   return images
 
-images = images_sequence(0,100)
+images = images_sequence(1,1000)
+log_data = pd.DataFrame(columns=['time','debris_num','star_num','target','u','v'])
 for image in images:
-  image.plot_image(label=False, save=True)
+  image.plot_image(iflabel=False, ifsave=True)
+  visible_debris = [_.name for _ in image.visible_debris]
+  visible_star = [_.name for _ in image.visible_star]
+  for _ in image.visible_debris:
+    ss_temp = pd.Series({'time':image.time,'debris_num':len(image.visible_debris),'star_num':len(image.visible_star),'target':_.name,'u':_.u,'v':_.v})
+    pd.concat([log_data,ss_temp],ignore_index=True)
+  for _ in image.visible_star:
+    ss_temp = pd.Series({'time':image.time,'debris_num':len(image.visible_debris),'star_num':len(image.visible_star),'target':_.name,'u':_.u,'v':_.v})
+    pd.concat([log_data,ss_temp],ignore_index=True)
 cv2.destroyAllWindows()
+log_data.to_csv('log_data.csv',index=False)
+

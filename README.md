@@ -1,0 +1,5 @@
+# Overview
+
+This is my graduation project for my undergraduate degree in SA BUAA. The main goal of this project is to build a system that can realize automatic navigation for LEO space craft, using space debris as the beacon. The project can be devide into several parts: 1 simulating the star sensor, which photos the pictures of space debris and star background, with the help of STK and MATLAB; 2 processing the images to get the position of the space debris, and the main point is to process the star background to get the targets we need; 3 when 2 or more space debris are visible, we use optical vectors to calculate the orbit/position of the space craft and use stars to determin the attitude; 4 when only 1 space debris is visible, we Kalman filter to estimate the position of the space craft with IMU information.
+
+# Code Structure
