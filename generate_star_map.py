@@ -1,3 +1,10 @@
+'''
+creat: 20250316
+update: 20250316
+author: 黄乙笑
+'''
+
+#导入必要的包
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -5,25 +12,28 @@ import os
 import cv2
 from dataclasses import dataclass
 
-current_dir = 'f:/buaa/python/final_proj'
-os.chdir(current_dir)
-sensor_file = 'data/mysenior_sensor_data_output.csv'
-debris_file = 'data/0_ALEXIS_22638_debris_new.csv'
-star_file = 'data/Star-100027_star.csv'
-star_magnitude_file = 'data/Star-100027_magnitude.csv'
-access_file_csv = 'data/Satellite-observe-Sensor-mysenior-To-Satellite-0_ALEXIS_22638_Access.csv'
-access_file_txt = 'data/Satellite-observe-Sensor-mysenior-To-Satellite-0_ALEXIS_22638_Access.txt'
-f = 0.01413
-dh = 0.000006
-dv = 0.000006
-H = 700
+current_dir = 'f:/buaa/python/final_proj' 
+os.chdir(current_dir) #设置工作目录
+# 各个文件路径
+sensor_file = 'data/mysenior_sensor_data_output.csv' # 星敏数据，包含时间、惯性系位置、速度、姿态四元数、角速度等
+debris_file = 'data/0_ALEXIS_22638_debris_new.csv' # 碎片数据，包含时间、惯性系中位置等
+star_file = 'data/Star-100027_star.csv' # 恒星数据。包含恒星的赤经赤纬以及在惯性系中位置
+star_magnitude_file = 'data/Star-100027_magnitude.csv' # 恒星的星等数据
+access_file_csv = 'data/Satellite-observe-Sensor-mysenior-To-Satellite-0_ALEXIS_22638_Access.csv' # stk导出的access信息，包含星敏能观测到的恒星和碎片的时间段（没有这个也可以自己算）
+access_file_txt = 'data/Satellite-observe-Sensor-mysenior-To-Satellite-0_ALEXIS_22638_Access.txt'# 同上
 
-class SpaceObject():
+
+f = 0.01413 # 焦距
+dh = 0.000006 #水平单位像素的实际长度 0.000006m/pixel
+dv = 0.000006 #同上
+H = 700 #alpha = 16.05deg = 2arctan(H/2f), -->H=662，这里取700是简便
+
+class SpaceObject():# 创建空间目标父类
   def __init__(self, category, name='unknow'):
     self.name = name
     self.category = category # 'sensor', 'debris', 'star'
 
-class Sensor(SpaceObject):
+class Sensor(SpaceObject): # 继承自SpaceObject，将每个时刻的星敏数据记录到每个Sensor对象中
   def __init__(self, name, time, x, y, z, vx, vy, vz, q1, q2, q3, q4, wx, wy, wz, category='sensor'):
     super().__init__(category, name)
     self.time = pd.to_datetime(time)
@@ -32,7 +42,7 @@ class Sensor(SpaceObject):
     self.quaternions = np.array([q1, q2, q3, q4])
     self.angular_velocity = np.array([wx, wy, wz])
 
-class Star(SpaceObject):
+class Star(SpaceObject): # 继承自SpaceObject，将每个时刻的恒星数据记录到每个Star对象中
   def __init__(self, name, magnitude, x, y, z, right_ascension, declination, category='star'):
     super().__init__(category, name)
     self.name = name
@@ -40,25 +50,24 @@ class Star(SpaceObject):
     self.position = np.array([x, y, z]).astype(float)
     self.as_dec = np.array([right_ascension, declination]).astype(float)
 
-@dataclass()
+@dataclass() # 用dataclass装饰器定义碎片类，记录每个时刻碎片的名字、时间、大小、位置
 class Debris:
   name: str
   time: pd.Timestamp
   magnitude: float
   position: np.ndarray
 
-def read_sensor_data(sensor_file):
+def read_sensor_data(sensor_file): #读取星敏数据，返回Sensor对象列表（每个元素是一个Sensor对象）和时间列表（每个元素是一个时间戳）
   sensor_data = pd.read_csv(sensor_file)
   time_list = pd.to_datetime(sensor_data['Time (UTCG)']).to_list()
   sensor=[]
-  for i in range(len(sensor_data)):
-    name = 'mysensor'
+  name = 'mysensor'
   for sensor_ in sensor_data.iterrows():
     sensor_temp = Sensor(name, sensor_[1]['Time (UTCG)'],sensor_[1]['x (km)'],sensor_[1]['y (km)'],sensor_[1]['z (km)'],sensor_[1]['Velocity x (km/sec)'],sensor_[1]['Velocity y (km/sec)'],sensor_[1]['Velocity z (km/sec)'],sensor_[1]['q1'],sensor_[1]['q2'],sensor_[1]['q3'],sensor_[1]['q4'],sensor_[1]['wx (deg/sec)'],sensor_[1]['wy (deg/sec)'],sensor_[1]['wz (deg/sec)'])
     sensor.append(sensor_temp)
   return sensor, time_list
 
-def read_debris_data(debris_file):
+def read_debris_data(debris_file): #读取碎片数据，返回Debris对象二维列表（行是每个碎片，列是每个时间）和碎片名字列表
   debris_data = pd.read_csv(debris_file,header=None)
   is_header = debris_data.iloc[:,0].str.startswith('Time (UTCG)')
   group_ids = is_header.cumsum()-1
@@ -82,7 +91,7 @@ def read_debris_data(debris_file):
     debris.append(group_debris)
   return debris, debris_name_list
 
-def read_star_data(star_file,star_magnitude_file):
+def read_star_data(star_file,star_magnitude_file): #读取恒星数据，返回Star对象列表（每个元素是一个Star对象）和恒星名字列表
   star_data = pd.read_csv(star_file,header=None)
   magnitude_data  = pd.read_csv(star_magnitude_file,header=None)
   magnitude = [eval(magnitude_data.iloc[i][0]) for i in range(1,len(magnitude_data),2)]
@@ -97,7 +106,7 @@ def read_star_data(star_file,star_magnitude_file):
       star.append(star_temp)
   return star, star_name_list
 
-def read_access_data(access_file_csv,access_file_txt,skiprows=29):
+def read_access_data(access_file_csv,access_file_txt,skiprows=29): #读取access数据，返回access数据的DataFrame，行是碎片，列是能观测到的碎片的开始和截止时间戳（由于仿真时间段，所以一般只能观测到一次）；skiprows是txt文件的前几行是无用的
   access = pd.read_csv(access_file_csv)
   access_df = pd.read_csv(access_file_txt,skiprows=skiprows,header=None)
   access_ls = []
@@ -127,9 +136,10 @@ class DebrisInImage():#记录在图像中的碎片和星，包含坐标星等和
     self.v = v
     self.magnitude = magnitude
     self.category = category
+    # 关于星等和灰度转换，缪按有这几个流行的公式，测试出来第二个公式最好，满足条件1最大的星等最暗，灰度值最低 2星等与灰度是指数关系
     max_magnitude_threshold = 6 #最大星等，也就是最暗的
     #self.gray = 255*2.512**(1-self.magnitude) #0黑 255白  ？
-    self.gray = 255-255*2.512**(self.magnitude-6) #？
+    self.gray = 255-255*2.512**(self.magnitude-6) 
     #self.gray = 50+10*(6-self.magnitude)  #？
     self.gray = int(self.gray)
     self.gray = 255 if self.gray > 255 else self.gray
@@ -143,10 +153,10 @@ class SpaceImage():#绘制每个时刻的图像
     self.dh = dh
     self.dv = dv
     self.H = H
-    self.visible_debris=[]
-    self.visible_star = []
+    self.visible_debris=[] #当前时刻中能观测到的碎片
+    self.visible_star = [] #当前时刻中能观测到的恒星
 
-  def rotate(self,sensor):
+  def rotate(self,sensor):# 从当前星敏数据中获取四元数，计算旋转矩阵（从惯性系到相机系）
     self.sensor = sensor
     q = sensor.quaternions
     if q[3] < 0:
@@ -161,42 +171,49 @@ class SpaceImage():#绘制每个时刻的图像
 
   def log_debris(self,debris0,debris_name):
     self.debris = debris0
-    sensor_vec = self.sensor.position
-    debris_vec = self.debris.position
-    vec = sensor_vec-debris_vec
-    distance = np.linalg.norm(vec)
-    vec = vec/np.linalg.norm(vec)
-    A = np.dot(self.Msi,vec)
-    self.u = self.f*A[0]/(self.dh*A[2])
-    self.v = self.f*A[1]/(self.dv*A[2])
-    self.u, self.v = int(self.u), int(self.v)
-    magnitude = self.debris.magnitude-6
+    sensor_vec = self.sensor.position #相机在惯性系位置
+    debris_vec = self.debris.position #碎片在惯性系位置
+    vec = sensor_vec-debris_vec #相机到碎片的矢量
+    distance = np.linalg.norm(vec) #相机到碎片的距离
+    vec = vec/np.linalg.norm(vec) #单位化矢量
+    A = np.dot(self.Msi,vec) # 星敏成像的几何方程。将方向矢量转为星敏坐标
+    self.u = self.f*A[0]/(self.dh*A[2]) #星敏坐标转为像素坐标
+    self.v = self.f*A[1]/(self.dv*A[2]) #同上
+    self.u_int, self.v_int = int(self.u), int(self.v) #取整
+    # 计算星等，先初始化星等在4附近（距离1000km处得出的统计规律），再根据实际距离计算星敏观测的视星等
+    magnitude = self.debris.magnitude-6 #其实这里只应该减3，但是这样的话星等太大了，成像点很暗。所以减6
     magnitude = magnitude -30 + 10*np.log10(distance)
     # print('u:',self.u," v:",self.v, 'magnitude:',magnitude)
-    if self.u > self.H or self.u < -self.H or self.v > self.H or self.v < -self.H:
+    if self.u > self.H or self.u < -self.H or self.v > self.H or self.v < -self.H: #判断成像点是否超出成像范围，虽然一般不会超出
       print(self.u,self.v)
     debris_temp = DebrisInImage(debris_name,self.time,self.u,self.v,magnitude,'debris')
     self.visible_debris.append(debris_temp)
 
-  def log_star(self,star,star_name):
+  def log_star(self,star,star_name):#同上
     # 将位置矢量近似为方向矢量
     vec = star.position
     A = np.dot(self.Msi,vec)
     self.u = self.f*A[0]/(self.dh*A[2])
     self.v = self.f*A[1]/(self.dv*A[2])
+    self.u_int, self.v_int = int(self.u), int(self.v)
     self.u, self.v = int(self.u), int(self.v)
     if self.u > self.H or self.u < -self.H or self.v > self.H or self.v < -self.H:
       print(self.u,self.v)
     star_temp = DebrisInImage(star_name,self.time,self.u,self.v, star.magnitude,'star')
     self.visible_star.append(star_temp)
 
-  def diffuse_img(self, img, u, v, gray):
-    diffuse = np.zeros((9,9),dtype=np.uint8)
-    for i in range(9):
-      for j in range(9):
-        diffuse[i,j] = int(gray*np.exp(-0.5*((i-4)**2+(j-4)**2)/2))
+  def diffuse_img(self, img, u, v, gray): # 恒星或者碎片的点扩散模型，得到一个9*9的二维高斯分布矩阵，然后叠加到图像上
+    #为了实现亚像素级别的模拟，根据uv小数点的部分确定他们再27*27中的位置，再将27*27的缩小为9*9
+    diffuse = np.zeros((27,27),dtype=np.uint8)
+    for i in range(27):
+      for j in range(27):
+        diffuse[i,j] = int(gray*np.exp(-0.5*((i-13+u*3-int(u)*3)**2+(j-13+v*3-int(v)*3)**2)/2))
+    diffuse = np.clip(diffuse, 0, 255).astype(np.uint8)
+    diffuse = cv2.resize(diffuse, (9, 9), interpolation=cv2.INTER_AREA)
     img_h, img_w = img.shape
     radius = 4  # 9x9矩阵的半径
+    u = int(u)
+    v = int(v)
     start_u = max(0, u - radius)
     end_u = min(img_h, u + radius + 1)
     start_v = max(0, v - radius)
@@ -211,13 +228,14 @@ class SpaceImage():#绘制每个时刻的图像
     return img
 
   def add_noise(self, img):
+    # 添加高斯噪声
     noise = np.random.normal(10,10,(self.H*2,self.H*2))
     img = img + noise
     img_clipped = np.clip(img, 0, 255).astype(np.uint8)
     return img_clipped
 
-  def plot_image(self,ifplot=False, ifsave=False, iflabel=True):
-    # 662*662 焦距f=0.01413m  0.000006m/pixel, alpha = 16.05deg = 2arctan(H/2f), -->H=662
+  def plot_image(self,ifplot=False, ifsave=False, iflabel=True):# 三个参数分别是：是否在程序运行时显示图像，是否保存图像，是否显示标签
+    #生成图像
     visible_debris = self.visible_debris
     visible_star = self.visible_star
     img = np.zeros((self.H*2,self.H*2),dtype=np.uint8)
@@ -238,6 +256,7 @@ class SpaceImage():#绘制每个时刻的图像
     return img
   
 def images_sequence(star_index,end_index):
+  # 在开始到结束的两个时间内，生成图像列表，images列表内每个元素是一个SpaceImage对象
   images = []
   for curr_time in time_list[star_index:end_index]:
     time_index = time_list.index(curr_time)
@@ -265,8 +284,9 @@ def images_sequence(star_index,end_index):
     images.append(space_image)
   return images
 
-images = images_sequence(1,1000)
+images = images_sequence(1,1000)#从第一帧到第1000帧生成图像
 log_data = pd.DataFrame(columns=['time','debris_num','star_num','target','u','v'])
+temp_log=[]
 for image in images:
   image.plot_image(iflabel=False, ifsave=True)
   visible_debris = [_.name for _ in image.visible_debris]
@@ -278,5 +298,5 @@ for image in images:
     ss_temp = pd.Series({'time':image.time,'debris_num':len(image.visible_debris),'star_num':len(image.visible_star),'target':_.name,'u':_.u,'v':_.v})
     pd.concat([log_data,ss_temp],ignore_index=True)
 cv2.destroyAllWindows()
-log_data.to_csv('log_data.csv',index=False)
+log_data.to_csv('log_data.csv',index=False)#这个csv记录了每个时刻碎片、恒星在星敏感器中的坐标和星等
 
