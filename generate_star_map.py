@@ -16,7 +16,7 @@ current_dir = 'f:/buaa/python/final_proj'
 os.chdir(current_dir) #设置工作目录
 # 各个文件路径
 sensor_file = 'data/mysenior_sensor_data_output.csv' # 星敏数据，包含时间、惯性系位置、速度、姿态四元数、角速度等
-debris_file = 'data/0_ALEXIS_22638_debris_new.csv' # 碎片数据，包含时间、惯性系中位置等
+debris_file = 'data/reduced_debris_data.csv' # 碎片数据，包含时间、惯性系中位置等
 star_file = 'data/Star-100027_star.csv' # 恒星数据。包含恒星的赤经赤纬以及在惯性系中位置
 star_magnitude_file = 'data/Star-100027_magnitude.csv' # 恒星的星等数据
 access_file_csv = 'data/Satellite-observe-Sensor-mysenior-To-Satellite-0_ALEXIS_22638_Access.csv' # stk导出的access信息，包含星敏能观测到的恒星和碎片的时间段（没有这个也可以自己算）
@@ -181,8 +181,8 @@ class SpaceImage():#绘制每个时刻的图像
     self.v = self.f*A[1]/(self.dv*A[2]) #同上
     self.u_int, self.v_int = int(self.u), int(self.v) #取整
     # 计算星等，先初始化星等在4附近（距离1000km处得出的统计规律），再根据实际距离计算星敏观测的视星等
-    magnitude = self.debris.magnitude-6 #其实这里只应该减3，但是这样的话星等太大了，成像点很暗。所以减6
-    magnitude = magnitude -30 + 10*np.log10(distance)
+    # magnitude = self.debris.magnitude-6 # little trick
+    magnitude = magnitude +5*np.log10(distance/1000) #根据距离将星等转换为视星等
     # print('u:',self.u," v:",self.v, 'magnitude:',magnitude)
     if self.u > self.H or self.u < -self.H or self.v > self.H or self.v < -self.H: #判断成像点是否超出成像范围，虽然一般不会超出
       print(self.u,self.v)
@@ -204,14 +204,16 @@ class SpaceImage():#绘制每个时刻的图像
 
   def diffuse_img(self, img, u, v, gray): # 恒星或者碎片的点扩散模型，得到一个9*9的二维高斯分布矩阵，然后叠加到图像上
     #为了实现亚像素级别的模拟，根据uv小数点的部分确定他们再27*27中的位置，再将27*27的缩小为9*9
-    diffuse = np.zeros((27,27),dtype=np.uint8)
-    for i in range(27):
-      for j in range(27):
-        diffuse[i,j] = int(gray*np.exp(-0.5*((i-13+u*3-int(u)*3)**2+(j-13+v*3-int(v)*3)**2)/2))
+    #好像没有必要哈，还使得效果更差了
+    diffuse = np.zeros((5,5),dtype=np.uint8)
+    u_ = (u-int(u))+2
+    v_ = (v-int(v))+2
+    for i in range(9):
+      for j in range(9):
+        diffuse[i,j] = int(gray*np.exp(-0.5/0.5/0.5*((i-u_)**2+(j-v_)**2)/2))
     diffuse = np.clip(diffuse, 0, 255).astype(np.uint8)
-    diffuse = cv2.resize(diffuse, (9, 9), interpolation=cv2.INTER_AREA)
     img_h, img_w = img.shape
-    radius = 4  # 9x9矩阵的半径
+    radius = 3  # 5x5矩阵的半径
     u = int(u)
     v = int(v)
     start_u = max(0, u - radius)
